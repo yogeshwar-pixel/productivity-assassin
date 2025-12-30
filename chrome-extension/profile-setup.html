@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Productivity Assassin - Profile Setup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        h1 {
+            color: #00ff99;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            color: #00ff99;
+            font-weight: bold;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #2a2a2a;
+            border: 1px solid #00ff99;
+            color: #fff;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #00ff99;
+            color: #000;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background: #00cc77;
+        }
+
+        .success {
+            background: #00ff99;
+            color: #000;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🎯 Set Your Profile</h1>
+    <p style="color: #aaa;">The extension will use this data to generate personalized accountability messages.</p>
+
+    <form id="profileForm">
+        <label for="longTermGoal">Long-Term Goal:</label>
+        <input type="text" id="longTermGoal" placeholder="e.g., Become a full-stack developer" required>
+
+        <label for="shortTermGoal">Short-Term Goal:</label>
+        <input type="text" id="shortTermGoal" placeholder="e.g., Finish project module by Friday" required>
+
+        <label for="currentTask">Current Task:</label>
+        <input type="text" id="currentTask" placeholder="e.g., Build login page UI" required>
+
+        <label for="weakness">Main Weakness/Enemy:</label>
+        <input type="text" id="weakness" placeholder="e.g., Reels addiction, YouTube rabbit holes" required>
+
+        <label for="painPoint">Pain Point:</label>
+        <input type="text" id="painPoint" placeholder="e.g., Feels behind peers, Procrastination" required>
+
+        <label for="idealSelf">Ideal Self Description:</label>
+        <textarea id="idealSelf" rows="2" placeholder="e.g., Disciplined developer who ships projects"></textarea>
+
+        <button type="submit">💾 Save Profile</button>
+    </form>
+
+    <div id="success" class="success">
+        ✅ Profile saved! The extension will now generate personalized messages based on your goals.
+    </div>
+
+    <script>
+        document.getElementById('profileForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const profile = {
+                longTermGoal: document.getElementById('longTermGoal').value,
+                shortTermGoal: document.getElementById('shortTermGoal').value,
+                currentTask: document.getElementById('currentTask').value,
+                weakness: document.getElementById('weakness').value,
+                painPoint: document.getElementById('painPoint').value,
+                idealSelf: document.getElementById('idealSelf').value || 'focused and productive',
+                createdAt: new Date().toISOString()
+            };
+
+            // Save to chrome extension storage
+            chrome.storage.local.set({ userProfile: profile }, function () {
+                console.log('Profile saved:', profile);
+                document.getElementById('success').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('success').style.display = 'none';
+                }, 3000);
+            });
+        });
+
+        // Load existing profile if available
+        chrome.storage.local.get(['userProfile'], function (result) {
+            if (result.userProfile) {
+                const profile = result.userProfile;
+                document.getElementById('longTermGoal').value = profile.longTermGoal || '';
+                document.getElementById('shortTermGoal').value = profile.shortTermGoal || '';
+                document.getElementById('currentTask').value = profile.currentTask || '';
+                document.getElementById('weakness').value = profile.weakness || '';
+                document.getElementById('painPoint').value = profile.painPoint || '';
+                document.getElementById('idealSelf').value = profile.idealSelf || '';
+            }
+        });
+    </script>
+</body>
+
+</html>
