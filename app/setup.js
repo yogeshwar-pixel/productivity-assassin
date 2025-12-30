@@ -361,11 +361,13 @@ export default function Setup() {
         window.addEventListener('message', listener);
       });
 
-      // Send profile
+      // Send profile - FORCE STRICT MODE ON SETUP
       window.postMessage({
         source: 'productivity-assassin-app',
         type: 'SYNC_PROFILE',
-        profile: extensionProfile
+        profile: extensionProfile,
+        strictMode: true,
+        violationCount: 0
       }, '*');
 
       console.log('✅ Profile sent via postMessage:', extensionProfile);
@@ -386,7 +388,8 @@ export default function Setup() {
         try {
           chrome.storage.local.set({
             userProfile: extensionProfile,
-            violationCount: 0  // Reset violation count
+            violationCount: 0,  // Reset violation count
+            strictMode: true    // Force Strict Mode ON
           }, () => {
             if (chrome.runtime.lastError) {
               console.error('Chrome storage error:', chrome.runtime.lastError);

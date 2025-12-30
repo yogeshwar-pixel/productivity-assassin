@@ -12,13 +12,15 @@ console.log('Domain:', domain, '| Blocked:', isBlocked);
 if (isBlocked) {
   console.log('🚫 FETCHING PROFILE & SHOWING PERSONALIZED MODAL');
 
-  // Get user profile and violation count
-  chrome.storage.local.get(['userProfile', 'violationCount'], function (result) {
+  // Get user profile, violation count, and strict mode
+  chrome.storage.local.get(['userProfile', 'violationCount', 'strictMode'], function (result) {
     const profile = result.userProfile;
     const violationCount = result.violationCount || 0;
+    const strictMode = result.strictMode !== false; // Default true
 
     console.log('📋 Profile:', profile);
     console.log('📊 Violations:', violationCount);
+    console.log('🔒 Strict Mode:', strictMode);
 
     // Increment violation count
     chrome.storage.local.set({ violationCount: violationCount + 1 });
@@ -111,6 +113,8 @@ Stop running from your work.`;
         border-radius: 20px;
         padding: 60px 50px;
         max-width: 750px;
+        max-height: 80vh;
+        overflow-y: auto;
         text-align: center;
         box-shadow: 0 30px 80px rgba(0, 0, 0, 0.95), 0 0 50px ${borderColor}40;
       ">
@@ -166,11 +170,52 @@ ${message}
         ">
           Redirecting in <span id="sec" style="color: ${borderColor}; font-weight: 700;">3</span> seconds...
         </div>
+        
+        <!-- VISUAL DEBUG INFO (Temporary) -->
+        <div style="margin-top: 20px; font-size: 12px; color: #666; font-family: monospace;">
+          Status: <span id="debug-status">Initializing...</span><br>
+          Strict Mode: <span id="debug-strict">${strictMode ? 'ON' : 'OFF'}</span><br>
+          Status: <span id="debug-status">Initializing...</span><br>
+          Strict Mode: <span id="debug-strict">${strictMode ? 'ON' : 'OFF'}</span><br>
+          
+          <button id="toggle-strict" style="
+            background: #222; color: #00ff99; border: 1px solid #00ff99; 
+            padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-right: 10px;
+          ">
+            🔒 Toggle Strict Mode (Current: ${strictMode ? 'ON' : 'OFF'})
+          </button>
+
+          <button id="emergency-reset" style="
+            background: #333; color: #fff; border: 1px solid #555; 
+            padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 10px;
+          ">
+            ⚠️ RESET SYSTEM (Fix Count)
+          </button>
+        </div>
       </div>
     `;
 
     document.body.appendChild(modal);
     console.log('✅ PERSONALIZED MODAL ADDED');
+
+    // Toggle Strict Mode Handler
+    document.getElementById('toggle-strict').addEventListener('click', () => {
+      const newMode = !strictMode;
+      chrome.storage.local.set({ strictMode: newMode }, () => {
+        alert(`Strict Mode turned ${newMode ? 'ON' : 'OFF'}. Reloading...`);
+        window.location.reload();
+      });
+    });
+
+    // Emergency Reset Handler
+    document.getElementById('emergency-reset').addEventListener('click', () => {
+      if (confirm('Reset violation count to 0 and force Strict Mode ON?')) {
+        chrome.storage.local.set({ violationCount: 0, strictMode: true }, () => {
+          alert('System Reset! Reloading...');
+          window.location.reload();
+        });
+      }
+    });
 
     // Countdown
     let sec = 3;
@@ -184,7 +229,21 @@ ${message}
       if (sec <= 0) {
         clearInterval(timer);
 
-        // Get redirect URL from user's setup platforms
+        console.log('⏰ Countdown finished!');
+        console.log('🔍 Checking strictMode value:', strictMode);
+        console.log('🔍 strictMode type:', typeof strictMode);
+
+        // Check strict mode before redirecting
+        if (!strictMode) {
+          console.log('⚠️ Strict Mode OFF - No redirect');
+          const t = document.getElementById('timer');
+          const secText = document.getElementById('sec');
+          if (t) t.textContent = '✓';
+          if (secText) secText.parentElement.innerHTML = 'Strict Mode OFF - <button onclick="this.closest(\'.modal\').remove()" style="background:#00ff99;color:#000;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-weight:bold;margin-left:10px">Close</button>';
+          return;
+        }
+
+        // Get redirect URL from user's study platforms
         let redirectUrl = null;
 
         console.log('🔍 Checking for studyPlatforms from Setup...');
@@ -216,6 +275,10 @@ ${message}
           return; // Don't redirect if not configured
         }
 
+        // Update debug status
+        const debugStatus = document.getElementById('debug-status');
+        if (debugStatus) debugStatus.textContent = 'Redirecting to: ' + redirectUrl;
+
         console.log('🚀 REDIRECTING to:', redirectUrl);
         window.location.replace(redirectUrl);
       }
@@ -224,3 +287,45 @@ ${message}
 }
 
 console.log('🟢 SCRIPT COMPLETE');
+
+// LISTEN FOR MESSAGES FROM DASHBOARD (localhost)
+window.addEventListener('message', (event) => {
+  // Only accept messages from same origin
+  if (event.source !== window) return;
+
+  if (event.data && event.data.source === 'productivity-assassin-app') {
+
+    // 1. Handle Profile Sync
+    if (event.data.type === 'SYNC_PROFILE') {
+      const profile = event.data.profile;
+      const strictMode = event.data.strictMode;
+      const violationCount = event.data.violationCount;
+
+      console.log('📥 Received profile from App:', profile);
+
+      const dataToSave = { userProfile: profile };
+      if (strictMode !== undefined) dataToSave.strictMode = strictMode;
+      if (violationCount !== undefined) dataToSave.violationCount = violationCount;
+
+      chrome.storage.local.set(dataToSave, () => {
+        console.log('✅ Extension: Profile & Settings Saved!');
+        // Send confirmation back
+        window.postMessage({
+          source: 'productivity-assassin-extension',
+          type: 'PROFILE_SYNCED',
+          success: true
+        }, '*');
+      });
+    }
+
+    // 2. Handle Strict Mode Toggle
+    if (event.data.type === 'SET_STRICT_MODE') {
+      const enabled = event.data.enabled;
+      console.log('🔒 Extension: Setting Strict Mode to', enabled);
+
+      chrome.storage.local.set({ strictMode: enabled }, () => {
+        console.log('✅ Extension: Strict Mode Saved!');
+      });
+    }
+  }
+});

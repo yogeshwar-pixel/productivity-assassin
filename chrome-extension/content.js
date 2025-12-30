@@ -33,11 +33,20 @@ window.addEventListener('message', (event) => {
   if (event.data && event.data.source === 'productivity-assassin-app') {
     if (event.data.type === 'SYNC_PROFILE') {
       const profile = event.data.profile;
+      // Also sync strictMode and violationCount if provided
+      const strictMode = event.data.strictMode;
+      const violationCount = event.data.violationCount;
+
       console.log('📥 Received profile from React app:', profile);
+      console.log('🔒 Strict Mode Sync:', strictMode);
+
+      const dataToSave = { userProfile: profile };
+      if (strictMode !== undefined) dataToSave.strictMode = strictMode;
+      if (violationCount !== undefined) dataToSave.violationCount = violationCount;
 
       // Save to chrome extension storage
-      chrome.storage.local.set({ userProfile: profile }, () => {
-        console.log('✅ Profile saved to chrome extension storage');
+      chrome.storage.local.set(dataToSave, () => {
+        console.log('✅ Full state saved to chrome extension storage');
 
         // Send confirmation back to app
         window.postMessage({
