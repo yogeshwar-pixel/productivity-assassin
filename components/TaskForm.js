@@ -14,10 +14,10 @@ import {
 
 export default function TaskForm({ visible, onClose, onSave, initialTask = null, categories = [] }) {
     const [title, setTitle] = useState(initialTask?.title || '');
-    const [description, setDescription] = useState(initialTask?.description || '');
+    const [motivation, setMotivation] = useState(initialTask?.motivation || '');
     const [priority, setPriority] = useState(initialTask?.priority || 'medium');
     const [category, setCategory] = useState(initialTask?.category || 'Personal');
-    const [notes, setNotes] = useState(initialTask?.notes || '');
+    const [deadline, setDeadline] = useState(initialTask?.deadline || new Date().toISOString().split('T')[0]);
 
     const isEdit = !!initialTask;
 
@@ -27,12 +27,22 @@ export default function TaskForm({ visible, onClose, onSave, initialTask = null,
             return;
         }
 
+        if (!motivation.trim()) {
+            alert('Define the stakes: Why does this matter?');
+            return;
+        }
+
+        if (!deadline) {
+            alert('A deadline is required for accountability.');
+            return;
+        }
+
         const taskData = {
             title: title.trim(),
-            description: description.trim(),
+            motivation: motivation.trim(),
             priority,
             category,
-            notes: notes.trim()
+            deadline
         };
 
         onSave(taskData);
@@ -41,10 +51,10 @@ export default function TaskForm({ visible, onClose, onSave, initialTask = null,
 
     const resetForm = () => {
         setTitle('');
-        setDescription('');
+        setMotivation('');
         setPriority('medium');
         setCategory('Personal');
-        setNotes('');
+        setDeadline(new Date().toISOString().split('T')[0]);
     };
 
     const handleClose = () => {
@@ -101,23 +111,25 @@ export default function TaskForm({ visible, onClose, onSave, initialTask = null,
                             }}
                         />
 
-                        {/* Description */}
-                        <Text style={{ color: '#fff', marginBottom: 8, fontWeight: '600' }}>Description</Text>
+                        {/* Tough Love / Motivation */}
+                        <Text style={{ color: '#fff', marginBottom: 8, fontWeight: '600' }}>Why must this be done? (Tough Love) *</Text>
                         <TextInput
-                            value={description}
-                            onChangeText={setDescription}
-                            placeholder="Add more details..."
+                            value={motivation}
+                            onChangeText={setMotivation}
+                            placeholder="e.g., 'If I don't do this, I fail the course.'"
                             placeholderTextColor="#666"
                             multiline
-                            numberOfLines={3}
+                            numberOfLines={2}
                             style={{
                                 backgroundColor: '#2a2a2a',
                                 color: '#fff',
                                 padding: 12,
                                 borderRadius: 8,
                                 marginBottom: 16,
-                                minHeight: 80,
-                                textAlignVertical: 'top'
+                                minHeight: 60,
+                                textAlignVertical: 'top',
+                                borderLeftWidth: 3,
+                                borderLeftColor: '#ff3333'
                             }}
                         />
 
@@ -171,23 +183,43 @@ export default function TaskForm({ visible, onClose, onSave, initialTask = null,
                             ))}
                         </View>
 
-                        {/* Notes */}
-                        <Text style={{ color: '#fff', marginBottom: 8, fontWeight: '600' }}>Notes</Text>
+                        {/* Deadline */}
+                        <Text style={{ color: '#fff', marginBottom: 8, fontWeight: '600' }}>Deadline *</Text>
+
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                            {['Today', 'Tomorrow', 'Next Week'].map(label => (
+                                <TouchableOpacity
+                                    key={label}
+                                    onPress={() => {
+                                        const date = new Date();
+                                        if (label === 'Tomorrow') date.setDate(date.getDate() + 1);
+                                        if (label === 'Next Week') date.setDate(date.getDate() + 7);
+                                        setDeadline(date.toISOString().split('T')[0]);
+                                    }}
+                                    style={{
+                                        backgroundColor: '#333',
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 6,
+                                        borderRadius: 6
+                                    }}
+                                >
+                                    <Text style={{ color: '#00ff99', fontSize: 12 }}>{label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
                         <TextInput
-                            value={notes}
-                            onChangeText={setNotes}
-                            placeholder="Additional notes..."
+                            value={deadline}
+                            onChangeText={setDeadline}
+                            placeholder="YYYY-MM-DD"
                             placeholderTextColor="#666"
-                            multiline
-                            numberOfLines={2}
                             style={{
                                 backgroundColor: '#2a2a2a',
                                 color: '#fff',
                                 padding: 12,
                                 borderRadius: 8,
                                 marginBottom: 20,
-                                minHeight: 60,
-                                textAlignVertical: 'top'
+                                fontSize: 16
                             }}
                         />
 

@@ -15,6 +15,27 @@ async function calculateTaskStats() {
     const pendingTasks = tasks.filter(t => t.status === 'pending').length;
     const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;
 
+    // Deadline Logic
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let overdueCount = 0;
+    let dueTodayCount = 0;
+    let dueTomorrowCount = 0;
+
+    tasks.forEach(t => {
+        if (t.status === 'completed' || !t.deadline) return;
+
+        const deadline = new Date(t.deadline);
+        deadline.setHours(0, 0, 0, 0);
+        const diffTime = deadline - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) overdueCount++;
+        else if (diffDays === 0) dueTodayCount++;
+        else if (diffDays === 1) dueTomorrowCount++;
+    });
+
     const progressPercent = totalTasks > 0
         ? Math.round((completedTasks / totalTasks) * 100)
         : 0;
@@ -25,59 +46,70 @@ async function calculateTaskStats() {
         pendingTasks,
         inProgressTasks,
         progressPercent,
+        overdueCount,
+        dueTodayCount,
+        dueTomorrowCount,
         unfinishedCount: pendingTasks + inProgressTasks
     };
 }
 
 /**
- * Generate dynamic reminder message based on progress percentage
- * @param {number} progressPercent - Completion percentage (0-100)
- * @param {number} unfinishedCount - Number of unfinished tasks
- * @returns {string} - Personalized reminder message
+ * Generate dynamic reminder message based on urgency
  */
-function generateReminderMessage(progressPercent, unfinishedCount) {
-    // No reminder if all done
-    if (progressPercent === 100) {
-        return '';
+function generateReminderMessage(stats) {
+    if (stats.overdueCount > 0) {
+        return `CRITICAL: You have ${stats.overdueCount} overdue task${stats.overdueCount > 1 ? 's' : ''}. Stop ignoring them.`;
+    }
+    if (stats.dueTodayCount > 0) {
+        return `URGENT: ${stats.dueTodayCount} task${stats.dueTodayCount > 1 ? 's' : ''} due today settings. Finish them now.`;
+    }
+    if (stats.dueTomorrowCount > 0) {
+        return `Heads up: ${stats.dueTomorrowCount} task${stats.dueTomorrowCount > 1 ? 's' : ''} due tomorrow. Don't procrastinate.`;
     }
 
-    // Dynamic messages based on progress ranges
+    const { progressPercent, unfinishedCount } = stats;
+
+    // No reminder if all done
+    if (progressPercent === 100) return '';
+
+    // General Progress
     if (progressPercent < 30) {
         return `You've barely scratched the surface — only ${progressPercent}% done. Time to move.`;
     } else if (progressPercent < 70) {
         return `You're halfway there. ${progressPercent}% complete — push through the next chunk.`;
-    } else if (progressPercent < 100) {
+    } else {
         return `You're almost done. ${progressPercent}% complete — finish the last ${unfinishedCount} task${unfinishedCount > 1 ? 's' : ''}.`;
     }
-
-    return '';
 }
 
 /**
  * Get unfinished task reminder data
  * Main API function for reminder system
- * @returns {Promise<Object>} - Reminder data object
  */
 export async function getUnfinishedTaskReminder() {
     const stats = await calculateTaskStats();
 
     // Determine if reminder should show
-    const shouldShow = stats.totalTasks > 0 && stats.progressPercent < 100 && stats.unfinishedCount > 0;
+    // Show if unfinished tasks exist OR if overdue items exist
+    const shouldShow = (stats.totalTasks > 0 && stats.progressPercent < 100) || stats.overdueCount > 0;
 
     // Generate message
-    const message = shouldShow
-        ? generateReminderMessage(stats.progressPercent, stats.unfinishedCount)
-        : '';
+    const message = shouldShow ? generateReminderMessage(stats) : '';
+
+    // Determine severity
+    let severity = 'low';
+    if (stats.overdueCount > 0) severity = 'critical';
+    else if (stats.dueTodayCount > 0) severity = 'high';
+    else if (stats.progressPercent < 30) severity = 'medium';
 
     return {
         shouldShow,
         progressPercent: stats.progressPercent,
-        pendingCount: stats.pendingTasks,
-        inProgressCount: stats.inProgressTasks,
         unfinishedCount: stats.unfinishedCount,
-        completedCount: stats.completedTasks,
-        totalCount: stats.totalTasks,
-        message
+        overdueCount: stats.overdueCount,
+        dueTodayCount: stats.dueTodayCount,
+        message,
+        severity
     };
 }
 

@@ -201,19 +201,35 @@ export async function getOverdueTasks() {
 }
 
 /**
- * Get today's tasks
- * @returns {Promise<Array>}
+ * Start a mission (Active Task)
+ * Only one task can be active at a time
  */
-export async function getTodayTasks() {
+export async function startMission(taskId) {
     const tasks = await getAllTasks();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
 
-    return tasks.filter(task => {
-        if (!task.deadline) return false;
-        const deadline = new Date(task.deadline);
-        return deadline >= today && deadline < tomorrow;
+    if (taskIndex === -1) return null;
+
+    // 1. Pause any currently active tasks
+    tasks.forEach(t => {
+        if (t.status === 'in-progress' && t.id !== taskId) {
+            t.status = 'pending';
+        }
     });
+
+    // 2. Set this task to active
+    tasks[taskIndex].status = 'in-progress';
+    tasks[taskIndex].updatedAt = new Date().toISOString();
+
+    await saveTasks(tasks);
+    console.log(`🚀 Mission Started: ${tasks[taskIndex].title}`);
+
+    return tasks[taskIndex];
+}
+
+/**
+ * Complete a mission
+ */
+export async function completeMission(taskId) {
+    return completeTask(taskId);
 }

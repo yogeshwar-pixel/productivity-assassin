@@ -17,8 +17,13 @@ export default function TaskReminderBanner({
 
     // Severity-based colors
     const getSeverityColor = () => {
-        if (progressPercent < 30) return '#ff3333'; // High - red
-        if (progressPercent < 70) return '#ff9900'; // Medium - orange
+        if (reminderData.severity === 'critical') return '#ff0000'; // Critical - bright red
+        if (reminderData.severity === 'high') return '#ff3333'; // High - lighter red
+        if (reminderData.severity === 'medium') return '#ff9900'; // Medium - orange
+
+        // Fallback or progress-based logic if severity missing
+        if (progressPercent < 30) return '#ff3333';
+        if (progressPercent < 70) return '#ff9900';
         return '#ffcc00'; // Low - yellow
     };
 
@@ -46,7 +51,7 @@ export default function TaskReminderBanner({
                     fontWeight: 'bold',
                     textTransform: 'uppercase'
                 }}>
-                    ⚠️ Unfinished Tasks
+                    {reminderData.severity === 'critical' ? '🔥 CRITICAL WARNING' : '⚠️ Unfinished Tasks'}
                 </Text>
 
                 {onDismiss && (

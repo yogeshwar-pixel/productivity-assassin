@@ -18,6 +18,13 @@ export default function TaskItem({ task, onToggleStatus, onEdit, onDelete }) {
         completed: '#00ff99'
     };
 
+    const xpValues = {
+        urgent: 50,
+        high: 30,
+        medium: 20,
+        low: 10
+    };
+
     const handleStatusPress = () => {
         let newStatus;
         if (task.status === 'pending') newStatus = 'in-progress';
@@ -38,41 +45,62 @@ export default function TaskItem({ task, onToggleStatus, onEdit, onDelete }) {
         }}>
             {/* Header Row */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                {/* Status Badge */}
+                {/* Mission Control Badge */}
                 <TouchableOpacity
                     onPress={handleStatusPress}
                     style={{
-                        backgroundColor: statusColors[task.status],
+                        backgroundColor: task.status === 'in-progress' ? '#00aaff' : '#333',
                         paddingHorizontal: 12,
-                        paddingVertical: 4,
-                        borderRadius: 12
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: task.status === 'in-progress' ? '#00aaff' : '#666',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6
                     }}
                 >
+                    <Text style={{ fontSize: 12 }}>
+                        {task.status === 'in-progress' ? '⏹️' : '🚀'}
+                    </Text>
                     <Text style={{
-                        color: task.status === 'completed' ? '#000' : '#fff',
+                        color: task.status === 'in-progress' ? '#000' : '#fff',
                         fontSize: 12,
                         fontWeight: 'bold',
                         textTransform: 'uppercase'
                     }}>
-                        {task.status === 'in-progress' ? 'In Progress' : task.status}
+                        {task.status === 'in-progress' ? 'Active Mission' : 'Start Mission'}
                     </Text>
                 </TouchableOpacity>
 
-                {/* Priority Badge */}
-                <View style={{
-                    backgroundColor: priorityColors[task.priority],
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 12
-                }}>
-                    <Text style={{
-                        color: '#fff',
-                        fontSize: 11,
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase'
+                {/* Priority & XP Badge */}
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <View style={{
+                        backgroundColor: priorityColors[task.priority],
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 8,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4
                     }}>
-                        {task.priority}
-                    </Text>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                            {task.priority}
+                        </Text>
+                    </View>
+
+                    <View style={{
+                        backgroundColor: '#333',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: '#ffd700'
+                    }}>
+                        <Text style={{ color: '#ffd700', fontSize: 10, fontWeight: 'bold' }}>
+                            +{xpValues[task.priority]} XP
+                        </Text>
+                    </View>
                 </View>
             </View>
 
@@ -118,6 +146,58 @@ export default function TaskItem({ task, onToggleStatus, onEdit, onDelete }) {
                     {new Date(task.createdAt).toLocaleDateString()}
                 </Text>
             </View>
+
+            {/* DEADLINE/URGENCY BADGE */}
+            {task.deadline && (
+                <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
+                    {(() => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const deadlineDate = new Date(task.deadline);
+                        deadlineDate.setHours(0, 0, 0, 0);
+
+                        const diffTime = deadlineDate - today;
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                        let color = '#999';
+                        let text = `${diffDays} days left`;
+                        let icon = '⏳';
+
+                        if (diffDays < 0) {
+                            color = '#ff3333';
+                            text = `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) !== 1 ? 's' : ''}`;
+                            icon = '⚠️';
+                        } else if (diffDays === 0) {
+                            color = '#ff3333';
+                            text = 'Due Today';
+                            icon = '🔥';
+                        } else if (diffDays === 1) {
+                            color = '#ff9900';
+                            text = 'Due Tomorrow';
+                            icon = '⏰';
+                        }
+
+                        // Don't show if completed
+                        if (task.status === 'completed') return null;
+
+                        return (
+                            <View style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: 'rgba(255,255,255,0.05)',
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 6
+                            }}>
+                                <Text style={{ fontSize: 12, marginRight: 6 }}>{icon}</Text>
+                                <Text style={{ color: color, fontSize: 12, fontWeight: 'bold' }}>
+                                    {text}
+                                </Text>
+                            </View>
+                        );
+                    })()}
+                </View>
+            )}
 
             {/* Action Buttons */}
             <View style={{ flexDirection: 'row', gap: 8 }}>

@@ -1,6 +1,5 @@
 // app/focus.js
 import { useEffect, useRef, useState } from "react";
-import { generateAssassinPrompt } from "../utils/assassinPrompts";
 import {
   Alert,
   Button,
@@ -12,6 +11,7 @@ import {
   Vibration,
   View,
 } from "react-native";
+import { generateAssassinPrompt } from "../utils/assassinPrompts";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 

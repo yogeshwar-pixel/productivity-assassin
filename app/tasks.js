@@ -15,7 +15,7 @@ import TaskItem from '../components/TaskItem';
 import TaskForm from '../components/TaskForm';
 import TaskReminderBanner from '../components/TaskReminderBanner';
 import Toast from '../components/Toast';
-import { createTask, getTasks, updateTask, deleteTask } from '../utils/taskManager';
+import { createTask, getTasks, updateTask, deleteTask, startMission, completeMission } from '../utils/taskManager';
 import { getCategories } from '../utils/taskStorage';
 import { getCachedUnfinishedTaskReminder, invalidateReminderCache } from '../utils/taskReminder';
 
@@ -84,15 +84,45 @@ export default function Tasks() {
 
     const handleToggleStatus = async (taskId, newStatus) => {
         try {
-            const updated = await updateTask(taskId, { status: newStatus });
-            setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+            let updated;
 
-            // Refresh reminder after status change
+            if (newStatus === 'in-progress') {
+                updated = await startMission(taskId);
+
+                // 🔒 TRIGGER STRICT MODE
+                window.postMessage({
+                    source: 'productivity-assassin-app',
+                    type: 'SET_STRICT_MODE',
+                    enabled: true
+                }, '*');
+
+                setToast({ visible: true, message: 'Mission Started! 🚀 Browser Locked.', type: 'info' });
+            } else if (newStatus === 'completed') {
+                updated = await completeMission(taskId);
+
+                // Calculate points for toast
+                let points = 20;
+                if (updated.priority === 'urgent') points = 50;
+                else if (updated.priority === 'high') points = 30;
+                else if (updated.priority === 'low') points = 10;
+
+                setToast({ visible: true, message: `Task Complete! +${points} XP 🎯`, type: 'success' });
+            } else {
+                updated = await updateTask(taskId, { status: newStatus });
+            }
+
+            // Refresh list - map to update or startMission returns the single updated task? 
+            // startMission updates ALL tasks (to pause others). So we should ideally reload list or optimistically update.
+            // For safety with mutex, let's reload tasks to catch the paused ones.
+            await loadData();
+
+            // Refresh reminder
             invalidateReminderCache();
             const reminder = await getCachedUnfinishedTaskReminder();
             setReminderData(reminder);
             setShowReminder(true);
         } catch (error) {
+            console.error(error);
             setToast({ visible: true, message: 'Failed to update status', type: 'error' });
         }
     };
@@ -145,6 +175,36 @@ export default function Tasks() {
                 <TouchableOpacity onPress={() => router.back()}>
                     <Text style={{ color: '#999', fontSize: 16 }}>← Back</Text>
                 </TouchableOpacity>
+            </View>
+
+            {/* Progress & Accountability */}
+            <View style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                        Mission Progress
+                    </Text>
+                    <Text style={{ color: '#00ff99', fontWeight: 'bold' }}>
+                        {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
+                    </Text>
+                </View>
+
+                {/* Progress Bar Track */}
+                <View style={{ height: 6, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{
+                        height: '100%',
+                        width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%`,
+                        backgroundColor: '#00ff99'
+                    }} />
+                </View>
+
+                {/* Motivation Text */}
+                <Text style={{ color: '#666', fontSize: 12, marginTop: 8, fontStyle: 'italic' }}>
+                    {stats.total === 0 ? "No missions assigned. Create one." :
+                        stats.completed === stats.total ? "All targets neutralized. Good work." :
+                            (stats.completed / stats.total) < 0.3 ? "Only " + Math.round((stats.completed / stats.total) * 100) + "% done. Stop slacking." :
+                                (stats.completed / stats.total) < 0.7 ? "Making progress. Don't lose focus." :
+                                    "Almost there. Finish the job."}
+                </Text>
             </View>
 
             {/* Stats */}

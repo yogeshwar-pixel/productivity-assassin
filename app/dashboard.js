@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState, useRef } from "react";
-import { Button, Dimensions, ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Button, Dimensions, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { BarChart } from "react-native-chart-kit";
 import ActivityMonitor from "../components/ActivityMonitor";
 import RedirectionModal from "../components/RedirectionModal";
@@ -17,12 +17,20 @@ import VisibilityTracker from "../utils/visibilityTracker";
 
 
 
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
+import { getTasks } from "../utils/taskManager";
+import { getUnfinishedTaskReminder } from "../utils/taskReminder";
+import StickyTaskCard from "../components/StickyTaskCard";
+
 export default function Dashboard() {
   const router = useRouter();
   const [sessions, setSessions] = useState([]);
   const [weeklyData, setWeeklyData] = useState([]);
   const [profile, setProfile] = useState(null);
-  const [testInput, setTestInput] = useState("");
+  const [activeTask, setActiveTask] = useState(null);
+  const [reminderData, setReminderData] = useState(null);
+
   const [distractionResult, setDistractionResult] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [snoozeActive, setSnoozeActive] = useState(false);
@@ -44,10 +52,6 @@ export default function Dashboard() {
   const violationHistory = useRef([]);
 
   useEffect(() => {
-    loadSessions();
-    loadProfile();
-    loadStrictMode();
-
     // Initialize activity simulator
     simulatorRef.current = new ActivitySimulator(handleActivityChange);
 
@@ -60,6 +64,34 @@ export default function Dashboard() {
       }
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSessions();
+      loadProfile();
+      loadStrictMode();
+      loadActiveTask();
+      loadReminder();
+
+      // ... (existing simulators/etc?) No, simulators are in useEffect.
+      // We should keep heavier logic in useEffect or ensure we don't duplicate listeners.
+      // But we need to reload data when screen comes into focus.
+    }, [])
+  );
+
+  const loadReminder = async () => {
+    const data = await getUnfinishedTaskReminder();
+    setReminderData(data);
+  };
+
+  const loadActiveTask = async () => {
+    const tasks = await getTasks({ status: 'in-progress' });
+    if (tasks.length > 0) {
+      setActiveTask(tasks[0]);
+    } else {
+      setActiveTask(null);
+    }
+  };
 
   const loadSessions = async () => {
     const saved = await AsyncStorage.getItem("focusSessions");
@@ -166,74 +198,9 @@ export default function Dashboard() {
     }
   };
 
-  const handleTestInputChange = async (text) => {
-    console.log('Testing Input: ', text);
-    setTestInput(text);
-
-    if (snoozeActive) {
-      console.log('Snooze is active, skipping detection');
-      return; // Don't check if snoozed
-    }
-
-    // Check for distraction using existing detection
-    const result = await detectDistraction(text, profile);
-    console.log('Detection Result:', result);
-
-    if (result && result.distracted) {
-      console.log('DISTRACTION DETECTED! Generating personalized prompt...');
-
-      // Generate goal-oriented message using profile
-      const blockedSite = result.keyword || text;
-      const personalizedPrompt = generateGoalOrientedMessage(
-        profile,
-        blockedSite,
-        result.severity || 7,
-        violationCount
-      );
-
-      // Merge personalized prompt with detection result
-      const enhancedResult = {
-        ...result,
-        prompt: personalizedPrompt.message,
-        severity: personalizedPrompt.severity,
-        type: personalizedPrompt.type,
-        profileUsed: personalizedPrompt.profileUsed
-      };
-
-      console.log('📝 Personalized Prompt:', personalizedPrompt.message.substring(0, 80) + '...');
-
-      // Log violation
-      const violation = {
-        keyword: blockedSite,
-        timestamp: Date.now(),
-        severity: result.severity
-      };
-      violationHistory.current.push(violation);
-      setViolationCount(prev => prev + 1);
-      await AsyncStorage.setItem('violationHistory', JSON.stringify(violationHistory.current));
-
-      setDistractionResult(enhancedResult);
-      setShowModal(true);
-    }
-  };
-
-  const forceOpenModal = () => {
-    console.log('FORCE OPENING MODAL');
-    // Create fake detection for testing
-    const fakeDetection = {
-      distracted: true,
-      keyword: 'TEST',
-      prompt: 'This is a test modal. The modal component is working!',
-      suggestion: 'Click any button to test functionality.',
-      severity: 8,
-    };
-    setDistractionResult(fakeDetection);
-    setShowModal(true);
-  };
-
   const handleGetBackToWork = () => {
     setShowModal(false);
-    setTestInput("");
+
     setDistractionResult(null);
     router.push("/focus");
   };
@@ -286,6 +253,61 @@ export default function Dashboard() {
       <Text style={{ fontSize: 26, fontWeight: "bold", marginBottom: 15 }}>
         📊 Productivity Dashboard
       </Text>
+
+      {/* OVERDUE ALERT CARD */}
+      {reminderData && reminderData.overdueCount > 0 && (
+        <TouchableOpacity
+          onPress={() => router.push('/tasks')}
+          style={{
+            width: "90%",
+            backgroundColor: "#2a0000",
+            borderWidth: 2,
+            borderColor: "#ff0000",
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 20,
+            shadowColor: "#ff0000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.5,
+            shadowRadius: 10,
+            elevation: 10,
+            flexDirection: "row",
+            alignItems: "center"
+          }}
+        >
+          <Text style={{ fontSize: 32, marginRight: 15 }}>⚠️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#ff0000", fontSize: 18, fontWeight: "bold", marginBottom: 4, textTransform: "uppercase" }}>
+              CRITICAL ALERT
+            </Text>
+            <Text style={{ color: "#fff", fontSize: 14 }}>
+              You have <Text style={{ fontWeight: "bold", color: "#ff3333" }}>{reminderData.overdueCount} overdue task{reminderData.overdueCount > 1 ? 's' : ''}</Text>.
+            </Text>
+            <Text style={{ color: "#ff9999", fontSize: 12, marginTop: 4, fontStyle: "italic" }}>
+              "Stop ignoring your responsibilities."
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* PRESSURE BOARD GRID */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%' }}>
+        {activeTask ? (
+          <StickyTaskCard
+            task={activeTask}
+            onPress={() => router.push('/tasks')}
+          />
+        ) : (
+          <View style={{ width: '100%', padding: 20, backgroundColor: '#222', borderRadius: 12, alignItems: 'center', marginBottom: 20 }}>
+            <Text style={{ color: '#666' }}>No active mission. Start one from Tasks.</Text>
+            <TouchableOpacity onPress={() => router.push('/tasks')} style={{ marginTop: 10 }}>
+              <Text style={{ color: '#00ff99', fontWeight: 'bold' }}>Go to Tasks →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* We should also show other top overdue/urgent tasks here ideally, but for now let's just show the active one prominent or fetch more */}
+      </View>
 
       {/* CRITICAL: Redirect Website Configuration Alert */}
       <TouchableOpacity
@@ -358,45 +380,7 @@ export default function Dashboard() {
       </View>
 
 
-      {/* VISIBLE TEST INPUT - DEBUG MODE */}
-      <View style={{ width: "90%", marginBottom: 20, marginTop: 10 }}>
-        <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "bold", marginBottom: 8 }}>
-          🔴 DEBUG: DISTRACTION DETECTOR TEST
-        </Text>
-        <Text style={{ color: "#fff", fontSize: 12, marginBottom: 5 }}>
-          Type "instagram", "pubg", "reels", etc. to trigger modal
-        </Text>
-        <TextInput
-          style={{
-            backgroundColor: "#000",
-            color: "#00ff00",
-            padding: 15,
-            borderRadius: 8,
-            borderWidth: 3,
-            borderColor: "red",
-            fontSize: 16,
-          }}
-          placeholder="Type a distraction keyword here..."
-          placeholderTextColor="#666"
-          value={testInput}
-          onChangeText={handleTestInputChange}
-          editable={!snoozeActive}
-        />
-        <TouchableOpacity
-          onPress={forceOpenModal}
-          style={{
-            backgroundColor: "#ff0000",
-            padding: 15,
-            borderRadius: 8,
-            marginTop: 10,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>
-            🚨 FORCE OPEN MODAL (TEST)
-          </Text>
-        </TouchableOpacity>
-      </View>
+
 
       {/* Summary */}
       <View style={{ flexDirection: "row", marginBottom: 20, gap: 20 }}>

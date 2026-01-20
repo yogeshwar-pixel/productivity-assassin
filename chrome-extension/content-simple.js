@@ -12,18 +12,31 @@ console.log('Domain:', domain, '| Blocked:', isBlocked);
 if (isBlocked) {
   console.log('🚫 FETCHING PROFILE & SHOWING PERSONALIZED MODAL');
 
-  // Get user profile, violation count, and strict mode
-  chrome.storage.local.get(['userProfile', 'violationCount', 'strictMode'], function (result) {
+  // Get user profile, violation count, history, and strict mode
+  chrome.storage.local.get(['userProfile', 'violationCount', 'violationHistory', 'strictMode'], function (result) {
     const profile = result.userProfile;
     const violationCount = result.violationCount || 0;
+    const history = result.violationHistory || [];
     const strictMode = result.strictMode !== false; // Default true
 
     console.log('📋 Profile:', profile);
     console.log('📊 Violations:', violationCount);
+    console.log('📜 History Length:', history.length);
     console.log('🔒 Strict Mode:', strictMode);
 
-    // Increment violation count
-    chrome.storage.local.set({ violationCount: violationCount + 1 });
+    // Record new violation
+    const newViolation = {
+      timestamp: Date.now(),
+      domain: domain,
+      type: 'blocked_site'
+    };
+    const updatedHistory = [...history, newViolation];
+
+    // Save to storage
+    chrome.storage.local.set({
+      violationCount: violationCount + 1,
+      violationHistory: updatedHistory
+    });
 
     // Generate personalized message
     let message = '';
@@ -325,6 +338,22 @@ window.addEventListener('message', (event) => {
 
       chrome.storage.local.set({ strictMode: enabled }, () => {
         console.log('✅ Extension: Strict Mode Saved!');
+      });
+    }
+
+    // 3. Handle Sync Request from App (Offline Sync)
+    if (event.data.type === 'REQUEST_SYNC') {
+      console.log('🔁 Sync Requested by App');
+      chrome.storage.local.get(['violationHistory', 'violationCount'], (result) => {
+        const history = result.violationHistory || [];
+        console.log(`📤 Sending ${history.length} violations to App`);
+
+        window.postMessage({
+          source: 'productivity-assassin-extension',
+          type: 'SYNC_DATA_RESPONSE',
+          history: history,
+          count: result.violationCount || 0
+        }, '*');
       });
     }
   }
